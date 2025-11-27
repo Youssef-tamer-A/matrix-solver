@@ -112,6 +112,7 @@ const Matrix: React.FC = () => {
                                 e.target.value
                               )
                             }
+                            onFocus={(e) => e.target.select()}
                             className={`
                               w-20 h-12 text-center font-semibold rounded-lg border-2 
                               transition-all duration-200 focus:outline-none focus:ring-4

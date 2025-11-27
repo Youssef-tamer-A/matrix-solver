@@ -2,6 +2,7 @@ import "./App.css";
 import Board from "./components/Board";
 import Header from "./components/Header";
 import Matrix from "./components/Matrix";
+import NavBar from "./components/NavBar";
 import SolveBottom from "./components/Solve-bottom";
 import Steppers from "./components/Steppers";
 import StepViewer from "./components/StepViewer";
@@ -16,6 +17,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <div dir="rtl" className="container mx-auto px-4 py-8 text-right">
         <Header />
+        <NavBar />
         {!solved && <QuickExamples />}
         <Steppers />
         <Matrix />

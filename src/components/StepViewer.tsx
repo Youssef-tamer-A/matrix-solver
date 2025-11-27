@@ -1,9 +1,15 @@
 import React from "react";
-import useGridStore from "../useGridStore";
+import useGridStore, { toFraction } from "../useGridStore";
 
 const StepViewer: React.FC = () => {
-  const { steps, currentStep, nextStep, prevStep, setCurrentStep } =
-    useGridStore();
+  const {
+    steps,
+    currentStep,
+    nextStep,
+    prevStep,
+    setCurrentStep,
+    useFractions,
+  } = useGridStore();
 
   if (steps.length === 0) return null;
 
@@ -133,13 +139,9 @@ const StepViewer: React.FC = () => {
                         rowIndex === currentStepData.highlight.row &&
                         (currentStepData.highlight.col === undefined ||
                           colIndex === currentStepData.highlight.col);
-                      
 
                       return (
-                        <td
-                          key={colIndex}
-                          className={`p-1`}
-                        >
+                        <td key={colIndex} className={`p-1`}>
                           <div
                             className={`
                               w-16 h-12 flex items-center justify-center text-center font-medium rounded-md
@@ -151,7 +153,11 @@ const StepViewer: React.FC = () => {
                               }
                             `}
                           >
-                            {Math.abs(cell) < 1e-10 ? "0.00" : cell.toFixed(2)}
+                            {Math.abs(cell) < 1e-10
+                              ? "0"
+                              : useFractions
+                              ? toFraction(cell)
+                              : cell.toFixed(2)}
                           </div>
                         </td>
                       );

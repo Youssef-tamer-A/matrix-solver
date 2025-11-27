@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type SolveMethod = "gaussian" | "gauss-jordan";
+
 export interface Step {
   description: string;
   matrix: number[][];
@@ -15,15 +17,74 @@ interface GridStore {
   solved: boolean;
   steps: Step[];
   currentStep: number;
+  solveMethod: SolveMethod;
+  useFractions: boolean;
   setRows: (rows: number) => void;
   setColumns: (columns: number) => void;
   setMatrix: (matrix: number[][]) => void;
   setSolved: (solved: boolean) => void;
   setCurrentStep: (step: number) => void;
+  setSolveMethod: (method: SolveMethod) => void;
+  setUseFractions: (use: boolean) => void;
   nextStep: () => void;
   prevStep: () => void;
   resetSolution: () => void;
   solve: () => void;
+}
+
+// دالة لحساب القاسم المشترك الأكبر
+function gcd(a: number, b: number): number {
+  a = Math.abs(Math.round(a));
+  b = Math.abs(Math.round(b));
+  while (b) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+// دالة تحويل الرقم العشري إلى كسر
+export function toFraction(decimal: number): string {
+  if (Math.abs(decimal) < 1e-10) return "0";
+  if (Math.abs(decimal - Math.round(decimal)) < 1e-10) {
+    return Math.round(decimal).toString();
+  }
+
+  const isNegative = decimal < 0;
+  decimal = Math.abs(decimal);
+
+  // نحاول إيجاد الكسر المناسب
+  const precision = 1e-10;
+  let bestNumerator = Math.round(decimal);
+  let bestDenominator = 1;
+  let bestError = Math.abs(decimal - bestNumerator);
+
+  for (let denominator = 2; denominator <= 1000; denominator++) {
+    const numerator = Math.round(decimal * denominator);
+    const error = Math.abs(decimal - numerator / denominator);
+    
+    if (error < bestError) {
+      bestError = error;
+      bestNumerator = numerator;
+      bestDenominator = denominator;
+    }
+    
+    if (error < precision) break;
+  }
+
+  // تبسيط الكسر
+  const divisor = gcd(bestNumerator, bestDenominator);
+  bestNumerator = bestNumerator / divisor;
+  bestDenominator = bestDenominator / divisor;
+
+  const sign = isNegative ? "-" : "";
+  
+  if (bestDenominator === 1) {
+    return sign + bestNumerator.toString();
+  }
+  
+  return `${sign}${bestNumerator}/${bestDenominator}`;
 }
 
 const useGridStore = create<GridStore>()(
@@ -36,6 +97,8 @@ const useGridStore = create<GridStore>()(
       solveText: `حل النظام:`,
       steps: [],
       currentStep: 0,
+      solveMethod: "gauss-jordan",
+      useFractions: false,
       setRows: (rows) =>
         set((state) => ({
           rows,
@@ -59,6 +122,8 @@ const useGridStore = create<GridStore>()(
       setMatrix: (matrix) => set({ matrix, solved: false, steps: [], currentStep: 0 }),
       setSolved: (solved) => set({ solved }),
       setCurrentStep: (step) => set({ currentStep: step }),
+      setSolveMethod: (method) => set({ solveMethod: method, solved: false, steps: [], currentStep: 0 }),
+      setUseFractions: (use) => set({ useFractions: use }),
       nextStep: () =>
         set((state) => ({
           currentStep: Math.min(state.currentStep + 1, state.steps.length - 1),
@@ -227,7 +292,57 @@ const useGridStore = create<GridStore>()(
             }
           }
 
-          // Phase 2: Back Substitution (الحذف الخلفي)
+          // إذا كانت الطريقة Gaussian Elimination فقط، نتوقف هنا
+          if (state.solveMethod === "gaussian") {
+            // استخراج الحلول باستخدام Back Substitution الحسابي (بدون تعديل المصفوفة)
+            const solutions = Array(columns - 1).fill(0);
+            let hasSolution = true;
+
+            // حل من الأسفل للأعلى
+            for (let i = Math.min(rows, columns - 1) - 1; i >= 0; i--) {
+              // البحث عن العمود المحوري في هذا الصف
+              let pivotCol = -1;
+              for (let j = 0; j < columns - 1; j++) {
+                if (Math.abs(matrix[i][j]) > 1e-10) {
+                  pivotCol = j;
+                  break;
+                }
+              }
+
+              if (pivotCol === -1) {
+                // صف كامل أصفار، نتجاهله
+                continue;
+              }
+
+              // حساب قيمة المتغير
+              let sum = matrix[i][columns - 1];
+              for (let j = pivotCol + 1; j < columns - 1; j++) {
+                sum -= matrix[i][j] * solutions[j];
+              }
+              solutions[pivotCol] = sum / matrix[i][pivotCol];
+            }
+
+            let solutionText = "✅ الحلول النهائية (باستخدام التعويض الخلفي):\n\n";
+            solutions.forEach((sol, index) => {
+              solutionText += `x${index + 1} = ${
+                Math.abs(sol) < 1e-10 ? "0.00" : sol.toFixed(2)
+              }\n`;
+            });
+
+            steps.push({
+              description: solutionText + "\n🎉 تم الحصول على الحل بنجاح! المصفوفة الآن في شكل الدرج (Row Echelon Form).\n\n📝 ملاحظة: في طريقة Gaussian Elimination، نستخدم التعويض الخلفي الحسابي لإيجاد الحلول دون تعديل المصفوفة.",
+              matrix: matrix.map((row) => [...row]),
+            });
+
+            return {
+              solveText: hasSolution ? "تم الحل بنجاح" : "لم يتم إيجاد حل",
+              solved: true,
+              steps,
+              currentStep: 0,
+            };
+          }
+
+          // Phase 2: Back Substitution (الحذف الخلفي) - فقط لـ Gauss-Jordan
           steps.push({
             description:
               "⬆️ المرحلة الثانية: الحذف الخلفي (Back Substitution)\nالآن سنحول المصفوفة إلى شكل الدرج المختزل (Reduced Row Echelon Form) بجعل جميع العناصر فوق المحاور أصفاراً.",
